@@ -24,7 +24,7 @@ DOMAINS = [
     "revelo.com.br",
 ]
 TIME_RANGE = "week"  # "day" | "week" | "month" | "year"
-MAX_RESULTS_PER_QUERY = 10
+MAX_RESULTS_PER_QUERY = 2
 # --------------------------------------------------------
 
 
