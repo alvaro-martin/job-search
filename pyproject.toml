@@ -5,6 +5,9 @@ description = "Self-hosted agent that finds, filters and scores job postings for
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "langchain>=1.5.2",
+    "langchain-openai>=1.8.5",
+    "langgraph>=1.2.24",
     "pydantic>=2.7",
     "python-dotenv>=1.0",
 ]
