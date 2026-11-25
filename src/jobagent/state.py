@@ -15,3 +15,4 @@ class State(TypedDict):
     unique_hits: list[SearchHit]  # filled by deduplicate (jobs not seen before)
     candidates: list[SearchHit]  # filled by filter_by_title: still in the race
     rejected: list[RejectedHit]  # filled by filter_by_title: thrown out, with reason
+    pages: dict[str, str]  # filled by fetch_pages: job url -> page text (memory only)
