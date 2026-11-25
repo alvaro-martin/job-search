@@ -11,4 +11,5 @@ class State(TypedDict):
     preferences: Preferences
     dealbreakers: Dealbreakers
     queries: list[str]  # filled by generate_queries
-    hits: list[SearchHit]  # filled by search_jobs
+    hits: list[SearchHit]  # filled by search_jobs (may contain duplicates)
+    unique_hits: list[SearchHit]  # filled by deduplicate

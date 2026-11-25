@@ -9,6 +9,7 @@ from pathlib import Path
 
 from langgraph.graph import END, START, StateGraph
 
+from deduplicate import deduplicate
 from generate_queries import generate_queries
 from schemas.schemas import Dealbreakers, Preferences, Profile
 from search_jobs import search_jobs
@@ -21,9 +22,11 @@ def build_graph():
     builder = StateGraph(State)
     builder.add_node("generate_queries", generate_queries)
     builder.add_node("search_jobs", search_jobs)
+    builder.add_node("deduplicate", deduplicate)
     builder.add_edge(START, "generate_queries")
     builder.add_edge("generate_queries", "search_jobs")
-    builder.add_edge("search_jobs", END)
+    builder.add_edge("search_jobs", "deduplicate")
+    builder.add_edge("deduplicate", END)
     return builder.compile()
 
 
@@ -35,6 +38,7 @@ def load_initial_state() -> State:
         "dealbreakers": Dealbreakers.model_validate(data["dealbreakers"]),
         "queries": [],
         "hits": [],
+        "unique_hits": [],
     }
 
 
@@ -45,6 +49,6 @@ if __name__ == "__main__":
     for q in final_state["queries"]:
         print(" -", q)
 
-    print(f"\nHITS ({len(final_state['hits'])})")
-    for h in final_state["hits"]:
+    print(f"\nUNIQUE HITS ({len(final_state['unique_hits'])} of {len(final_state['hits'])})")
+    for h in final_state["unique_hits"]:
         print(f" - {h.title[:70]}\n   {h.url}")
