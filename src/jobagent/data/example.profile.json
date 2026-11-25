@@ -1,0 +1,26 @@
+{
+  "profile": {
+    "summary": "Python developer moving into AI engineering",
+    "years_experience": 3,
+    "skills": ["Python", "FastAPI", "LangChain"],
+    "languages": [
+      {"name": "Portuguese", "level": "native"},
+      {"name": "English", "level": "advanced"}
+    ],
+    "experience": [
+      {"role": "Backend Developer", "company": "Example Corp", "years": 3}
+    ]
+  },
+  "preferences": {
+    "target_roles": ["AI engineer", "desenvolvedor Python"],
+    "work_models": ["remote", "hybrid"],
+    "contract_types": ["employee"],
+    "locations": ["Brasil"],
+    "keywords": ["LangGraph", "RAG"]
+  },
+  "dealbreakers": {
+    "stacks": ["PHP"],
+    "title_keywords": ["estagio"],
+    "work_models": ["onsite"]
+  }
+}
