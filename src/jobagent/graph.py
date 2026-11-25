@@ -10,6 +10,7 @@ from pathlib import Path
 from langgraph.graph import END, START, StateGraph
 
 from deduplicate import deduplicate
+from filter_by_title import filter_by_title
 from generate_queries import generate_queries
 from save_jobs import save_jobs
 from schemas.schemas import Dealbreakers, Preferences, Profile
@@ -24,11 +25,13 @@ def build_graph():
     builder.add_node("generate_queries", generate_queries)
     builder.add_node("search_jobs", search_jobs)
     builder.add_node("deduplicate", deduplicate)
+    builder.add_node("filter_by_title", filter_by_title)
     builder.add_node("save_jobs", save_jobs)
     builder.add_edge(START, "generate_queries")
     builder.add_edge("generate_queries", "search_jobs")
     builder.add_edge("search_jobs", "deduplicate")
-    builder.add_edge("deduplicate", "save_jobs")
+    builder.add_edge("deduplicate", "filter_by_title")
+    builder.add_edge("filter_by_title", "save_jobs")
     builder.add_edge("save_jobs", END)
     return builder.compile()
 
@@ -42,6 +45,8 @@ def load_initial_state() -> State:
         "queries": [],
         "hits": [],
         "unique_hits": [],
+        "candidates": [],
+        "rejected": [],
     }
 
 
@@ -52,6 +57,6 @@ if __name__ == "__main__":
     for q in final_state["queries"]:
         print(" -", q)
 
-    print(f"\nNEW JOBS ({len(final_state['unique_hits'])} of {len(final_state['hits'])} hits)")
-    for h in final_state["unique_hits"]:
+    print(f"\nCANDIDATES ({len(final_state['candidates'])} of {len(final_state['hits'])} hits)")
+    for h in final_state["candidates"]:
         print(f" - {h.title[:70]}\n   {h.url}")

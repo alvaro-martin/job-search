@@ -22,9 +22,10 @@ DOMAINS = [
     "remotar.com.br",
     "trampos.co",
     "revelo.com.br",
+    "infojobs.com.br"
 ]
 TIME_RANGE = "week"  # "day" | "week" | "month" | "year"
-MAX_RESULTS_PER_QUERY = 2
+MAX_RESULTS_PER_QUERY = 1
 # --------------------------------------------------------
 
 

@@ -5,9 +5,12 @@ from state import State
 
 
 def save_jobs(state: State) -> dict:
-    # For now every job is saved as "new". Once there are filter and score nodes,
-    # this is where rejected jobs will be saved as "rejected".
+    # Kept jobs are saved as "new". Rejected ones are saved too (as "rejected"), so that
+    # next week we don't fetch and evaluate them all over again.
     with JobStore() as store:
-        new_count = store.save_hits(state["unique_hits"], status=JobStatus.NEW)
-    print(f"[save] {new_count} new jobs saved to the database")
+        new_count = store.save_hits(state["candidates"], status=JobStatus.NEW)
+        rejected_count = store.save_hits(
+            [r.hit for r in state["rejected"]], status=JobStatus.REJECTED
+        )
+    print(f"[save] {new_count} new jobs and {rejected_count} rejected jobs saved to the database")
     return {}

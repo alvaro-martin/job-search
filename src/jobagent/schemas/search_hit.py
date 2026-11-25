@@ -10,3 +10,10 @@ class SearchHit(StrictModel):
     score: float | None = None  # Tavily's relevance score
     published_date: str | None = None  # often missing for general searches
     query: str  # which query found it
+
+
+class RejectedHit(StrictModel):
+    """A hit that was thrown out, with the reason why."""
+
+    hit: SearchHit
+    reason: str
