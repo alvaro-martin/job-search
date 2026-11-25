@@ -1,23 +1,42 @@
-"""Third node: remove duplicate hits found in this run (same job found by several queries).
+"""Third node: remove duplicate hits.
 
-It only looks at this run. Comparing with jobs from previous runs comes later,
-when we connect the database.
+Two kinds of duplicates are removed:
+  1. In this run: the same job found by several queries.
+  2. From earlier runs: jobs already saved in the database.
+
+This node only READS the database. Saving jobs is done by a later node, after the
+rest of the pipeline has finished, so a crash in between never loses jobs.
 """
 
+from job_store import JobStore
 from schemas.search_hit import SearchHit
 from state import State
-from urls import normalize_url
+from urls import job_id, normalize_url
 
 
-def deduplicate(state: State) -> dict:
+def remove_duplicates_in_run(hits: list[SearchHit]) -> list[SearchHit]:
     """Keep one hit per job. If a job appears several times, keep the best-scored one."""
     best: dict[str, SearchHit] = {}  # normalized url -> hit
-    for hit in state["hits"]:
+    for hit in hits:
         key = normalize_url(hit.url)
         current = best.get(key)
         if current is None or (hit.score or 0) > (current.score or 0):
             best[key] = hit
+    return list(best.values())  # keeps the order in which each job first appeared
 
-    unique_hits = list(best.values())  # keeps the order in which each job first appeared
-    print(f"[dedupe] {len(state['hits'])} hits -> {len(unique_hits)} unique")
-    return {"unique_hits": unique_hits}
+
+def remove_already_seen(hits: list[SearchHit]) -> list[SearchHit]:
+    """Drop the hits whose job is already in the database."""
+    with JobStore() as store:
+        seen = store.seen_ids(job_id(hit.url) for hit in hits)
+    return [hit for hit in hits if job_id(hit.url) not in seen]
+
+
+def deduplicate(state: State) -> dict:
+    unique_in_run = remove_duplicates_in_run(state["hits"])
+    new_hits = remove_already_seen(unique_in_run)
+    print(
+        f"[dedupe] {len(state['hits'])} hits -> {len(unique_in_run)} unique in this run "
+        f"-> {len(new_hits)} new ({len(unique_in_run) - len(new_hits)} already seen)"
+    )
+    return {"unique_hits": new_hits}
