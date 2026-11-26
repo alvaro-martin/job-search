@@ -1,16 +1,47 @@
-"""Last node: save this run's jobs in the database, so the next run skips them."""
+"""Last node: save every job processed in this run, so the next run skips them.
 
-from job_store import JobStatus, JobStore
+Kept jobs are saved as "new" with their score; rejected jobs as "rejected" with the reason.
+Saving rejected jobs matters: it stops us paying to fetch and read them again next week,
+and it keeps their score so you can review them or lower the threshold later.
+
+Jobs that failed along the way (page fetch, extraction or scoring) are NOT in these lists,
+so they are not saved and will be tried again in a later run.
+"""
+
+from job_store import JobRecord, JobStatus, JobStore
 from state import State
 
 
 def save_jobs(state: State) -> dict:
-    # Kept jobs are saved as "new". Rejected ones are saved too (as "rejected"), so that
-    # next week we don't fetch and evaluate them all over again.
-    with JobStore() as store:
-        new_count = store.save_hits(state["candidates"], status=JobStatus.NEW)
-        rejected_count = store.save_hits(
-            [r.hit for r in state["rejected"]], status=JobStatus.REJECTED
+    hits_by_url = {hit.url: hit for hit in state["candidates"]}
+
+    records = [
+        JobRecord(
+            hit=hits_by_url[scored.job.url],
+            status=JobStatus.NEW,
+            score=scored.total_score,
+            reason=scored.details.summary,
+            job=scored.job,
+            details=scored.details,
         )
-    print(f"[save] {new_count} new jobs and {rejected_count} rejected jobs saved to the database")
+        for scored in state["scored_jobs"]
+    ]
+    records += [
+        JobRecord(
+            hit=r.hit,
+            status=JobStatus.REJECTED,
+            score=r.score,
+            reason=r.reason,
+            job=r.job,
+            details=r.details,
+        )
+        for r in state["rejected"]
+    ]
+
+    with JobStore() as store:
+        store.save_records(records)
+    print(
+        f"[save] {len(state['scored_jobs'])} kept and {len(state['rejected'])} rejected "
+        f"jobs saved to the database"
+    )
     return {}

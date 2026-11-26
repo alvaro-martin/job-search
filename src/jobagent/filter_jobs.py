@@ -70,7 +70,7 @@ def filter_jobs(state: State) -> dict:
     for job in state["jobs"]:
         reason, flags = check_job(job, state["dealbreakers"])
         if reason:
-            rejected.append(RejectedHit(hit=hits_by_url[job.url], reason=reason))
+            rejected.append(RejectedHit(hit=hits_by_url[job.url], reason=reason, job=job))
         else:
             kept_jobs.append(job.model_copy(update={"unverified": flags}))
             kept_hits.append(hits_by_url[job.url])

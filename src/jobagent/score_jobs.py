@@ -110,7 +110,9 @@ def score_jobs(state: State) -> dict:
             reason = None
 
         if reason:
-            rejected.append(RejectedHit(hit=hit, reason=reason))
+            rejected.append(
+                RejectedHit(hit=hit, reason=reason, job=job, score=total, details=details)
+            )
         else:
             scored.append(ScoredJob(job=job, total_score=total, details=details))
             kept_hits.append(hit)
