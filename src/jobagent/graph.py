@@ -16,6 +16,7 @@ from filter_by_title import filter_by_title
 from filter_jobs import filter_jobs
 from generate_queries import generate_queries
 from save_jobs import save_jobs
+from score_jobs import score_jobs
 from schemas.schemas import Dealbreakers, Preferences, Profile
 from search_jobs import search_jobs
 from state import State
@@ -32,6 +33,7 @@ def build_graph():
     builder.add_node("fetch_pages", fetch_pages)
     builder.add_node("extract_jobs", extract_jobs)
     builder.add_node("filter_jobs", filter_jobs)
+    builder.add_node("score_jobs", score_jobs)
     builder.add_node("save_jobs", save_jobs)
     builder.add_edge(START, "generate_queries")
     builder.add_edge("generate_queries", "search_jobs")
@@ -40,7 +42,8 @@ def build_graph():
     builder.add_edge("filter_by_title", "fetch_pages")
     builder.add_edge("fetch_pages", "extract_jobs")
     builder.add_edge("extract_jobs", "filter_jobs")
-    builder.add_edge("filter_jobs", "save_jobs")
+    builder.add_edge("filter_jobs", "score_jobs")
+    builder.add_edge("score_jobs", "save_jobs")
     builder.add_edge("save_jobs", END)
     return builder.compile()
 
@@ -58,6 +61,7 @@ def load_initial_state() -> State:
         "rejected": [],
         "pages": {},
         "jobs": [],
+        "scored_jobs": [],
     }
 
 
@@ -68,17 +72,25 @@ if __name__ == "__main__":
     for q in final_state["queries"]:
         print(" -", q)
 
-    print(f"\nJOBS ({len(final_state['jobs'])} of {len(final_state['hits'])} hits)")
-    for job in final_state["jobs"]:
+    print(f"\nSCORED JOBS ({len(final_state['scored_jobs'])} of {len(final_state['hits'])} hits)")
+    for sj in final_state["scored_jobs"]:
+        job = sj.job
         work = job.work_model.value if job.work_model else "?"
         contracts = "/".join(c.value for c in job.contract_types) or "?"
-        print(f" - {job.title} | {job.company} | {work} | {contracts}")
-        print(f"   stack: {', '.join(job.required_stack) or '?'}")
+        print(f" - [{sj.total_score}] {job.title} | {job.company} | {work} | {contracts}")
+        print(f"   why: {sj.details.summary}")
         if job.unverified:
             print(f"   unverified: {', '.join(job.unverified)}")
         print(f"   {job.url}")
 
-    # Peek at one fetched page, to check that the text is readable (you can delete this)
-    if final_state["pages"]:
-        url, text = next(iter(final_state["pages"].items()))
-        print(f"\nSAMPLE PAGE: {url}\n{text[:800]}")
+    # Save the scored jobs to a file, to review them (you can delete this)
+    out_path = Path(__file__).parent / "data" / "scored_jobs.json"
+    out_path.write_text(
+        json.dumps(
+            [sj.model_dump(mode="json") for sj in final_state["scored_jobs"]],
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    print(f"\nSaved to {out_path}")

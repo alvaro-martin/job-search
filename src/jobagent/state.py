@@ -4,6 +4,7 @@ from typing import TypedDict
 
 from schemas.schemas import Dealbreakers, Preferences, Profile
 from schemas.job import JobPosting
+from schemas.score import ScoredJob
 from schemas.search_hit import RejectedHit, SearchHit
 
 
@@ -18,3 +19,4 @@ class State(TypedDict):
     rejected: list[RejectedHit]  # filled by filter_by_title: thrown out, with reason
     pages: dict[str, str]  # filled by fetch_pages: job url -> page text (memory only)
     jobs: list[JobPosting]  # filled by extract_jobs: structured details of each job
+    scored_jobs: list[ScoredJob]  # filled by score_jobs: best first
