@@ -4,7 +4,6 @@ Run from anywhere, for example from the project root:
     python src/jobagent/graph.py
 """
 
-import json
 from pathlib import Path
 
 from langgraph.graph import END, START, StateGraph
@@ -17,7 +16,7 @@ from filter_jobs import filter_jobs
 from generate_queries import generate_queries
 from save_jobs import save_jobs
 from score_jobs import score_jobs
-from schemas.schemas import Dealbreakers, Preferences, Profile
+from schemas.user_profile import UserProfile
 from search_jobs import search_jobs
 from state import State
 from write_report import write_report
@@ -52,11 +51,11 @@ def build_graph():
 
 
 def load_initial_state() -> State:
-    data = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    user = UserProfile.load(PROFILE_PATH)
     return {
-        "profile": Profile.model_validate(data["profile"]),
-        "preferences": Preferences.model_validate(data["preferences"]),
-        "dealbreakers": Dealbreakers.model_validate(data["dealbreakers"]),
+        "profile": user.profile,
+        "preferences": user.preferences,
+        "dealbreakers": user.dealbreakers,
         "queries": [],
         "hits": [],
         "unique_hits": [],
