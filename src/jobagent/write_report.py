@@ -79,7 +79,7 @@ def render_report(state: State, generated_at: datetime) -> str:
 def write_report(state: State) -> dict:
     now = datetime.now()
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    path = REPORTS_DIR / f"report_{now:%Y-%m-%d_%H%M}.md"
+    path = REPORTS_DIR / f"report_{now:%Y-%m-%d_%H%M%S}.md"
     path.write_text(render_report(state, now), encoding="utf-8")
     print(f"[report] {len(state['scored_jobs'])} matches written to {path}")
     return {"report_path": str(path)}
