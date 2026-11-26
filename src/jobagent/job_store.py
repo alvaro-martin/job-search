@@ -64,6 +64,32 @@ class JobRecord:
     details: JobScore | None = None
 
 
+@dataclass
+class StoredJob:
+    """A row read back from the database."""
+
+    id: str
+    url: str
+    title: str
+    first_seen: str
+    last_seen: str
+    status: str
+    score: int | None
+    reason: str | None
+    job: JobPosting | None  # None if we never got to read the page (or the saved JSON is outdated)
+    details: JobScore | None
+
+
+def _parse(model, raw: str | None):
+    """Parse saved JSON into a model; None if absent or no longer valid (e.g. old schema)."""
+    if not raw:
+        return None
+    try:
+        return model.model_validate_json(raw)
+    except ValueError:
+        return None
+
+
 class JobStore:
     """Use it with `with`, so the connection is always closed:
 
@@ -129,3 +155,17 @@ class JobStore:
         with self._conn:  # commits on success, rolls back on error
             self._conn.executemany(UPSERT, rows)
         return len(ids - already_known)
+
+    def all_jobs(self) -> list[StoredJob]:
+        """Every job, best score first (jobs without a score last, newest first)."""
+        rows = self._conn.execute(
+            "SELECT id, url, title, first_seen, last_seen, status, score, reason, job_json, details_json "
+            "FROM jobs ORDER BY score IS NULL, score DESC, first_seen DESC"
+        ).fetchall()
+        return [
+            StoredJob(
+                id=r[0], url=r[1], title=r[2], first_seen=r[3], last_seen=r[4], status=r[5],
+                score=r[6], reason=r[7], job=_parse(JobPosting, r[8]), details=_parse(JobScore, r[9]),
+            )
+            for r in rows
+        ]

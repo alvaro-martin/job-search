@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st  # noqa: E402
 
+import jobs_view  # noqa: E402
 import profile_view  # noqa: E402
 import run_view  # noqa: E402
 
@@ -26,4 +27,4 @@ with tab_profile:
 with tab_run:
     run_view.render()
 with tab_jobs:
-    st.info("Coming in the next step.")
+    jobs_view.render()
