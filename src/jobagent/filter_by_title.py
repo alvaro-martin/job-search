@@ -7,27 +7,9 @@ Only rules that can be judged from a title are applied here:
 The rest of the dealbreakers need the full page and are applied in a later node.
 """
 
-import re
-import unicodedata
-
 from schemas.search_hit import RejectedHit, SearchHit
 from state import State
-
-
-def normalize_text(text: str) -> str:
-    """Lowercase and remove accents, so "Estágio" matches "estagio"."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
-
-
-def contains_term(title: str, term: str) -> bool:
-    """True if `term` appears in `title` as a whole word or phrase.
-
-    Whole-word matching means "java" does NOT match "JavaScript", and
-    "estagio" does NOT match "estagiario": list both spellings if you want both.
-    """
-    pattern = rf"(?<!\w){re.escape(normalize_text(term))}(?!\w)"
-    return re.search(pattern, normalize_text(title)) is not None
+from text_match import contains_term
 
 
 def rejection_reason(hit: SearchHit, blocked: list[tuple[str, str]]) -> str | None:

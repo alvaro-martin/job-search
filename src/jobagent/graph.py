@@ -13,6 +13,7 @@ from deduplicate import deduplicate
 from extract_jobs import extract_jobs
 from fetch_pages import fetch_pages
 from filter_by_title import filter_by_title
+from filter_jobs import filter_jobs
 from generate_queries import generate_queries
 from save_jobs import save_jobs
 from schemas.schemas import Dealbreakers, Preferences, Profile
@@ -30,6 +31,7 @@ def build_graph():
     builder.add_node("filter_by_title", filter_by_title)
     builder.add_node("fetch_pages", fetch_pages)
     builder.add_node("extract_jobs", extract_jobs)
+    builder.add_node("filter_jobs", filter_jobs)
     builder.add_node("save_jobs", save_jobs)
     builder.add_edge(START, "generate_queries")
     builder.add_edge("generate_queries", "search_jobs")
@@ -37,7 +39,8 @@ def build_graph():
     builder.add_edge("deduplicate", "filter_by_title")
     builder.add_edge("filter_by_title", "fetch_pages")
     builder.add_edge("fetch_pages", "extract_jobs")
-    builder.add_edge("extract_jobs", "save_jobs")
+    builder.add_edge("extract_jobs", "filter_jobs")
+    builder.add_edge("filter_jobs", "save_jobs")
     builder.add_edge("save_jobs", END)
     return builder.compile()
 
@@ -71,14 +74,11 @@ if __name__ == "__main__":
         contracts = "/".join(c.value for c in job.contract_types) or "?"
         print(f" - {job.title} | {job.company} | {work} | {contracts}")
         print(f"   stack: {', '.join(job.required_stack) or '?'}")
+        if job.unverified:
+            print(f"   unverified: {', '.join(job.unverified)}")
         print(f"   {job.url}")
 
     # Peek at one fetched page, to check that the text is readable (you can delete this)
     if final_state["pages"]:
         url, text = next(iter(final_state["pages"].items()))
         print(f"\nSAMPLE PAGE: {url}\n{text[:800]}")
-
-    # Show the full structured job (this can be deleted later)
-    if final_state["jobs"]:
-        print("\nFIRST JOB (full):")
-        print(final_state["jobs"][0].model_dump_json(indent=2))

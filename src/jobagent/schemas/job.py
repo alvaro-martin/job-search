@@ -43,3 +43,6 @@ class JobPosting(JobExtraction):
     """An extraction plus the URL it came from (the LLM doesn't know the URL)."""
 
     url: str
+    # Set by the filter, not by the LLM: things the page doesn't say that we would have
+    # liked to check (e.g. "work model not stated"). The job is kept, but flagged.
+    unverified: list[str] = Field(default_factory=list)
