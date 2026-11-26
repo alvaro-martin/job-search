@@ -3,6 +3,7 @@
 from typing import TypedDict
 
 from schemas.schemas import Dealbreakers, Preferences, Profile
+from schemas.job import JobPosting
 from schemas.search_hit import RejectedHit, SearchHit
 
 
@@ -16,3 +17,4 @@ class State(TypedDict):
     candidates: list[SearchHit]  # filled by filter_by_title: still in the race
     rejected: list[RejectedHit]  # filled by filter_by_title: thrown out, with reason
     pages: dict[str, str]  # filled by fetch_pages: job url -> page text (memory only)
+    jobs: list[JobPosting]  # filled by extract_jobs: structured details of each job
