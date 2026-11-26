@@ -20,3 +20,4 @@ class State(TypedDict):
     pages: dict[str, str]  # filled by fetch_pages: job url -> page text (memory only)
     jobs: list[JobPosting]  # filled by extract_jobs: structured details of each job
     scored_jobs: list[ScoredJob]  # filled by score_jobs: best first
+    report_path: str  # filled by write_report

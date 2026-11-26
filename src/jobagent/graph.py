@@ -20,6 +20,7 @@ from score_jobs import score_jobs
 from schemas.schemas import Dealbreakers, Preferences, Profile
 from search_jobs import search_jobs
 from state import State
+from write_report import write_report
 
 PROFILE_PATH = Path(__file__).parent / "data" / "profile.json"
 
@@ -34,6 +35,7 @@ def build_graph():
     builder.add_node("extract_jobs", extract_jobs)
     builder.add_node("filter_jobs", filter_jobs)
     builder.add_node("score_jobs", score_jobs)
+    builder.add_node("write_report", write_report)
     builder.add_node("save_jobs", save_jobs)
     builder.add_edge(START, "generate_queries")
     builder.add_edge("generate_queries", "search_jobs")
@@ -43,7 +45,8 @@ def build_graph():
     builder.add_edge("fetch_pages", "extract_jobs")
     builder.add_edge("extract_jobs", "filter_jobs")
     builder.add_edge("filter_jobs", "score_jobs")
-    builder.add_edge("score_jobs", "save_jobs")
+    builder.add_edge("score_jobs", "write_report")
+    builder.add_edge("write_report", "save_jobs")
     builder.add_edge("save_jobs", END)
     return builder.compile()
 
@@ -62,6 +65,7 @@ def load_initial_state() -> State:
         "pages": {},
         "jobs": [],
         "scored_jobs": [],
+        "report_path": "",
     }
 
 
@@ -83,14 +87,4 @@ if __name__ == "__main__":
             print(f"   unverified: {', '.join(job.unverified)}")
         print(f"   {job.url}")
 
-    # Save the scored jobs to a file, to review them (you can delete this)
-    out_path = Path(__file__).parent / "data" / "scored_jobs.json"
-    out_path.write_text(
-        json.dumps(
-            [sj.model_dump(mode="json") for sj in final_state["scored_jobs"]],
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
-    print(f"\nSaved to {out_path}")
+    print(f"\nReport: {final_state['report_path']}")

@@ -25,7 +25,7 @@ DOMAINS = [
     "infojobs.com.br"
 ]
 TIME_RANGE = "week"  # "day" | "week" | "month" | "year"
-MAX_RESULTS_PER_QUERY = 1
+MAX_RESULTS_PER_QUERY = 2
 # --------------------------------------------------------
 
 

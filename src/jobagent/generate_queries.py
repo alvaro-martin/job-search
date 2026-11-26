@@ -22,7 +22,7 @@ load_dotenv()  # reads API keys from a .env file
 
 # "provider:model". Change it to whichever provider you have a key for.
 MODEL = os.getenv("JOBAGENT_MODEL", "openai:gpt-5-nano")
-MAX_QUERIES = 1  # each query costs Tavily credits, so we cap them
+MAX_QUERIES = 2  # each query costs Tavily credits, so we cap them
 # The system prompt lives in a plain text file so anyone can replace it.
 # Point JOBAGENT_QUERY_PROMPT to your own file to use a different prompt.
 SYSTEM_PROMPT_PATH = Path(
