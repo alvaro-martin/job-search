@@ -4,8 +4,6 @@ Run from anywhere, for example from the project root:
     python src/jobagent/graph.py
 """
 
-from pathlib import Path
-
 from langgraph.graph import END, START, StateGraph
 
 from deduplicate import deduplicate
@@ -14,14 +12,13 @@ from fetch_pages import fetch_pages
 from filter_by_title import filter_by_title
 from filter_jobs import filter_jobs
 from generate_queries import generate_queries
+from paths import PROFILE_PATH
 from save_jobs import save_jobs
 from score_jobs import score_jobs
 from schemas.user_profile import UserProfile
 from search_jobs import search_jobs
 from state import State
 from write_report import write_report
-
-PROFILE_PATH = Path(__file__).parent / "data" / "profile.json"
 
 
 def build_graph():
