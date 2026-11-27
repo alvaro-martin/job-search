@@ -1,6 +1,5 @@
 """Run tab: check the setup, run the pipeline with live progress, show the result."""
 
-import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -10,7 +9,8 @@ import streamlit as st
 from graph import NODES, load_initial_state
 from run_history import RunTrigger
 from runner import SETUP_STEP, PipelineError, run_pipeline
-from settings import ConfigError, Settings, load_settings
+from settings import ConfigError, load_settings
+from setup_check import check_keys
 
 # The graph is a straight line, so these are the steps in order.
 NODE_LABELS = {
@@ -35,43 +35,8 @@ COUNTER_LABELS = {
     "to_retry": "To retry next run",
 }
 
-# Which environment variable holds the key for each model provider.
-# None means no key is needed; providers that are not listed can't be checked.
-PROVIDER_KEYS = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "google_genai": "GOOGLE_API_KEY",
-    "groq": "GROQ_API_KEY",
-    "mistralai": "MISTRAL_API_KEY",
-    "cohere": "COHERE_API_KEY",
-    "together": "TOGETHER_API_KEY",
-    "fireworks": "FIREWORKS_API_KEY",
-    "ollama": None,
-}
-
 
 # ----------------------------- helpers (no Streamlit) ------------------
-def check_keys(settings: Settings) -> list[dict]:
-    """Which API keys does a run need, and are they set? Never returns the keys themselves."""
-    checks = [{"name": "TAVILY_API_KEY", "needed_by": "search and page download",
-               "status": "found" if os.getenv("TAVILY_API_KEY") else "missing"}]
-    models = settings.models
-    for model in dict.fromkeys([models.query, models.extract, models.score]):  # unique, in order
-        provider = model.split(":", 1)[0] if ":" in model else None
-        if provider in PROVIDER_KEYS and PROVIDER_KEYS[provider] is None:
-            continue  # e.g. a local model: no key needed
-        if provider in PROVIDER_KEYS:
-            env = PROVIDER_KEYS[provider]
-            checks.append({"name": env, "needed_by": f"model {model}",
-                           "status": "found" if os.getenv(env) else "missing"})
-        else:
-            checks.append({"name": f"key for {model}", "needed_by": f"model {model}", "status": "unknown"})
-    unique = {}
-    for c in checks:  # two models from the same provider share one key
-        unique.setdefault(c["name"], c)
-    return list(unique.values())
-
-
 def describe(node: str, before: dict, after: dict) -> str:
     """One short line on what a step just did, from the state before and after it."""
     newly_rejected = len(after["rejected"]) - len(before["rejected"])
