@@ -16,10 +16,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
+from logs import get_logger
 from schemas.schemas import Dealbreakers, Preferences, Profile
 from settings import Settings, load_settings
 
 load_dotenv()  # reads API keys from a .env file
+log = get_logger(__name__)
 
 # The model and the number of queries are in the settings (see settings.py).
 # The system prompt lives in a plain text file so anyone can replace it.
@@ -102,7 +104,11 @@ def generate_queries(state: State) -> dict:
             "dealbreakers": state["dealbreakers"].model_dump_json(indent=2, exclude_none=True),
         }
     )
-    return {"queries": clean_queries(result.queries, max_queries)}
+    queries = clean_queries(result.queries, max_queries)
+    log.info("%d search queries generated", len(queries))
+    for query in queries:
+        log.debug("query: %s", query)
+    return {"queries": queries}
 
 
 # ----------------------------- the graph -------------------------------

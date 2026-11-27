@@ -22,29 +22,31 @@ from state import State
 from write_report import write_report
 
 
+# The steps, in running order. The graph is a straight line built from this list, and the
+# runner uses the order to say which step failed.
+NODES = {
+    "generate_queries": generate_queries,
+    "search_jobs": search_jobs,
+    "deduplicate": deduplicate,
+    "filter_by_title": filter_by_title,
+    "fetch_pages": fetch_pages,
+    "extract_jobs": extract_jobs,
+    "filter_jobs": filter_jobs,
+    "score_jobs": score_jobs,
+    "write_report": write_report,
+    "save_jobs": save_jobs,
+}
+
+
 def build_graph():
     builder = StateGraph(State)
-    builder.add_node("generate_queries", generate_queries)
-    builder.add_node("search_jobs", search_jobs)
-    builder.add_node("deduplicate", deduplicate)
-    builder.add_node("filter_by_title", filter_by_title)
-    builder.add_node("fetch_pages", fetch_pages)
-    builder.add_node("extract_jobs", extract_jobs)
-    builder.add_node("filter_jobs", filter_jobs)
-    builder.add_node("score_jobs", score_jobs)
-    builder.add_node("write_report", write_report)
-    builder.add_node("save_jobs", save_jobs)
-    builder.add_edge(START, "generate_queries")
-    builder.add_edge("generate_queries", "search_jobs")
-    builder.add_edge("search_jobs", "deduplicate")
-    builder.add_edge("deduplicate", "filter_by_title")
-    builder.add_edge("filter_by_title", "fetch_pages")
-    builder.add_edge("fetch_pages", "extract_jobs")
-    builder.add_edge("extract_jobs", "filter_jobs")
-    builder.add_edge("filter_jobs", "score_jobs")
-    builder.add_edge("score_jobs", "write_report")
-    builder.add_edge("write_report", "save_jobs")
-    builder.add_edge("save_jobs", END)
+    for name, node in NODES.items():
+        builder.add_node(name, node)
+    names = list(NODES)
+    builder.add_edge(START, names[0])
+    for current, following in zip(names, names[1:]):
+        builder.add_edge(current, following)
+    builder.add_edge(names[-1], END)
     return builder.compile()
 
 
@@ -71,7 +73,14 @@ def load_initial_state(settings: Settings | None = None) -> State:
 
 
 if __name__ == "__main__":
-    final_state = build_graph().invoke(load_initial_state())
+    # A quick way to run everything from the terminal. It records the run in the history like
+    # any other. These imports are here because runner.py imports this module.
+    from logs import setup_logging
+    from run_history import RunTrigger
+    from runner import run_pipeline
+
+    setup_logging()
+    final_state = run_pipeline(RunTrigger.MANUAL).state
 
     print("QUERIES")
     for q in final_state["queries"]:

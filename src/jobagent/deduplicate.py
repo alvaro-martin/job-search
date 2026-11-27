@@ -9,9 +9,12 @@ rest of the pipeline has finished, so a crash in between never loses jobs.
 """
 
 from job_store import JobStore
+from logs import get_logger
 from schemas.search_hit import SearchHit
 from state import State
 from urls import job_id, normalize_url
+
+log = get_logger(__name__)
 
 
 def remove_duplicates_in_run(hits: list[SearchHit]) -> list[SearchHit]:
@@ -35,8 +38,8 @@ def remove_already_seen(hits: list[SearchHit]) -> list[SearchHit]:
 def deduplicate(state: State) -> dict:
     unique_in_run = remove_duplicates_in_run(state["hits"])
     new_hits = remove_already_seen(unique_in_run)
-    print(
-        f"[dedupe] {len(state['hits'])} hits -> {len(unique_in_run)} unique in this run "
-        f"-> {len(new_hits)} new ({len(unique_in_run) - len(new_hits)} already seen)"
+    log.info(
+        "%d hits -> %d unique in this run -> %d new (%d already seen)",
+        len(state["hits"]), len(unique_in_run), len(new_hits), len(unique_in_run) - len(new_hits),
     )
     return {"unique_hits": new_hits}

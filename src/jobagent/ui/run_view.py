@@ -1,12 +1,15 @@
 """Run tab: check the setup, run the pipeline with live progress, show the result."""
 
 import os
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
 
-from graph import build_graph, load_initial_state
+from graph import NODES, load_initial_state
+from run_history import RunTrigger
+from runner import SETUP_STEP, PipelineError, run_pipeline
 from settings import ConfigError, Settings, load_settings
 
 # The graph is a straight line, so these are the steps in order.
@@ -21,6 +24,15 @@ NODE_LABELS = {
     "score_jobs": "Scoring the jobs",
     "write_report": "Writing the report",
     "save_jobs": "Saving to the database",
+    SETUP_STEP: "Reading the settings and your profile",
+}
+
+COUNTER_LABELS = {
+    "search_results": "Search results",
+    "new_jobs": "New jobs",
+    "rejected": "Rejected",
+    "matches": "Matches",
+    "to_retry": "To retry next run",
 }
 
 # Which environment variable holds the key for each model provider.
@@ -85,27 +97,6 @@ def describe(node: str, before: dict, after: dict) -> str:
     return ""
 
 
-def stream_run(app, state: dict):
-    """Run the graph step by step. Yields (node, description, state so far) after each step."""
-    state = dict(state)
-    for chunk in app.stream(state, stream_mode="updates"):
-        for node, update in chunk.items():
-            before = dict(state)
-            state.update(update or {})  # a node that changes nothing may report None
-            yield node, describe(node, before, state), state
-
-
-def summarize(state: dict) -> dict:
-    new, rejected, matches = len(state["unique_hits"]), len(state["rejected"]), len(state["scored_jobs"])
-    return {
-        "Search results": len(state["hits"]),
-        "New jobs": new,
-        "Rejected": rejected,
-        "Matches": matches,
-        "To retry next run": max(new - matches - rejected, 0),
-    }
-
-
 # ----------------------------- screen ----------------------------------
 def show_setup(checks: list[dict]) -> None:
     missing = [c for c in checks if c["status"] == "missing"]
@@ -119,31 +110,36 @@ def show_setup(checks: list[dict]) -> None:
 
 
 def execute(state: dict) -> None:
-    steps = list(NODE_LABELS)
+    steps = list(NODES)  # the steps, in running order
     progress = st.progress(0.0)
-    final, done, seen = None, 0, set()
+    done, seen = 0, set()
     with st.status(f"Running: {NODE_LABELS[steps[0]]}", expanded=True) as status:
+
+        def on_step(node: str, before: dict, after: dict) -> None:
+            nonlocal done
+            done += 1
+            seen.add(node)
+            detail = describe(node, before, after)
+            status.write(f"✓ {NODE_LABELS.get(node, node)}" + (f": {detail}" if detail else ""))
+            progress.progress(min(done / len(steps), 1.0))
+            if done < len(steps):
+                status.update(label=f"Running: {NODE_LABELS.get(steps[done], '...')}")
+
         try:
-            for node, detail, final in stream_run(build_graph(), state):
-                done += 1
-                seen.add(node)
-                status.write(f"✓ {NODE_LABELS.get(node, node)}" + (f": {detail}" if detail else ""))
-                progress.progress(min(done / len(steps), 1.0))
-                if done < len(steps):
-                    status.update(label=f"Running: {NODE_LABELS.get(steps[done], '...')}")
-        except Exception as e:
-            current = NODE_LABELS.get(steps[min(done, len(steps) - 1)], "")
+            result = run_pipeline(RunTrigger.UI, state=state, on_step=on_step)
+        except PipelineError as e:
             status.update(label="The run failed", state="error")
-            st.error(f"The run stopped during \"{current}\": {e}\n\n"
-                     "Nothing was saved, so you can fix the problem and run again.")
+            st.error(f"The run stopped during \"{NODE_LABELS.get(e.step, e.step)}\": "
+                     f"{e.cause}\n\nNothing was saved, so you can fix the problem and run again. "
+                     "The run is recorded in Jobs > History.")
             return
         if "save_jobs" not in seen:  # this step changes nothing, so it may not report
             status.write(f"✓ {NODE_LABELS['save_jobs']}")
         status.update(label="Run complete", state="complete", expanded=False)
     progress.progress(1.0)
     st.session_state.last_run = {
-        "summary": summarize(final),
-        "report_path": final["report_path"],
+        "summary": {COUNTER_LABELS[name]: value for name, value in asdict(result.counters).items()},
+        "report_path": result.report_path,
         "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
 
@@ -196,7 +192,8 @@ def render() -> None:
     )
     st.caption(
         "Don't change anything else on the page while it runs: that stops the run. "
-        "If a run stops early nothing is saved, so you can just run it again."
+        "If a run stops early nothing is saved, so you can just run it again. "
+        "It is listed as interrupted in Jobs > History."
     )
 
     ready = problem is None and not any(c["status"] == "missing" for c in checks)

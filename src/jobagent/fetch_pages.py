@@ -8,10 +8,13 @@ Jobs that are NOT fetched (over the cap, or the page failed) are removed from
 processed, so those jobs show up again in a later run instead of being lost.
 """
 
+from logs import get_logger
 from schemas.search_hit import SearchHit
 from search_jobs import get_client
 from state import State
 from urls import normalize_url
+
+log = get_logger(__name__)
 
 # Fixed limits. The ones you may want to change (max pages, extract depth) are in the settings.
 BATCH_SIZE = 20  # Tavily accepts 1 to 20 URLs per request
@@ -29,7 +32,7 @@ def fetch_batch(client, batch: list[SearchHit], extract_depth: str) -> dict[str,
             format="markdown",
         )
     except Exception as e:  # network error, no credits left, etc.
-        print(f"[warn] extract failed for a batch of {len(batch)} pages: {e}")
+        log.warning("extract failed for a batch of %d pages: %s", len(batch), e)
         return {}
 
     pages: dict[str, str] = {}
@@ -39,7 +42,7 @@ def fetch_batch(client, batch: list[SearchHit], extract_depth: str) -> dict[str,
         if hit is None:
             continue
         if len(text) < MIN_CHARS_PER_PAGE:
-            print(f"[warn] almost no text extracted from {hit.url}")
+            log.warning("almost no text extracted from %s", hit.url)
             continue
         pages[hit.url] = text[:MAX_CHARS_PER_PAGE]
     return pages
@@ -61,8 +64,8 @@ def fetch_pages(state: State) -> dict:
             )
 
     fetched = [hit for hit in to_fetch if hit.url in pages]
-    print(
-        f"[fetch] {len(ranked)} candidates -> {len(pages)} pages fetched, "
-        f"{len(to_fetch) - len(pages)} failed, {left_for_later} left for a later run"
+    log.info(
+        "%d candidates -> %d pages fetched, %d failed, %d left for a later run",
+        len(ranked), len(pages), len(to_fetch) - len(pages), left_for_later,
     )
     return {"candidates": fetched, "pages": pages}

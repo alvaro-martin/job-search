@@ -9,7 +9,10 @@ so they are not saved and will be tried again in a later run.
 """
 
 from job_store import JobRecord, JobStatus, JobStore
+from logs import get_logger
 from state import State
+
+log = get_logger(__name__)
 
 
 def save_jobs(state: State) -> dict:
@@ -40,8 +43,8 @@ def save_jobs(state: State) -> dict:
 
     with JobStore() as store:
         store.save_records(records)
-    print(
-        f"[save] {len(state['scored_jobs'])} kept and {len(state['rejected'])} rejected "
-        f"jobs saved to the database"
+    log.info(
+        "%d kept and %d rejected jobs saved to the database",
+        len(state["scored_jobs"]), len(state["rejected"]),
     )
     return {}

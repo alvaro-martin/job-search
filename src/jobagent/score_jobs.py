@@ -16,11 +16,13 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 
+from logs import get_logger, log_rejected
 from schemas.score import JobScore, ScoredJob
 from schemas.search_hit import RejectedHit
 from state import State
 
 load_dotenv()
+log = get_logger(__name__)
 
 # The model, the minimum score and the weights are in the settings (see settings.py).
 MAX_CONCURRENCY = 5
@@ -96,7 +98,7 @@ def score_jobs(state: State) -> dict:
     for hit, job, details in zip(candidates, jobs, results, strict=True):
         if isinstance(details, Exception) or details is None:
             # Not saved, so it will be tried again in a later run.
-            print(f"[warn] scoring failed for {job.url}: {details}")
+            log.warning("scoring failed for %s: %s", job.url, details)
             failed += 1
             continue
 
@@ -121,10 +123,9 @@ def score_jobs(state: State) -> dict:
     scored = [scored[i] for i in order]
     kept_hits, kept_jobs = [kept_hits[i] for i in order], [kept_jobs[i] for i in order]
 
-    print(
-        f"[score] {len(jobs)} jobs -> {len(scored)} kept (score >= {min_score}), "
-        f"{len(jobs) - len(scored) - failed} rejected, {failed} failed"
+    log.info(
+        "%d jobs -> %d kept (score >= %d), %d rejected, %d failed",
+        len(jobs), len(scored), min_score, len(jobs) - len(scored) - failed, failed,
     )
-    for r in rejected[len(state["rejected"]) :]:
-        print(f"   x {r.hit.title[:60]}  ({r.reason})")
+    log_rejected(log, rejected[len(state["rejected"]) :])
     return {"scored_jobs": scored, "candidates": kept_hits, "jobs": kept_jobs, "rejected": rejected}

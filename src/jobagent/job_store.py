@@ -1,6 +1,7 @@
 """Local SQLite database with every job we have processed, so later runs can skip them.
 
 One row per job, identified by job_id(url). The file is data/jobs.db (never commit it).
+The history of the runs is in the same file (see run_history.py).
 """
 
 import sqlite3
@@ -10,12 +11,13 @@ from datetime import date
 from enum import StrEnum
 from pathlib import Path
 
+from paths import DB_PATH
 from schemas.job import JobPosting
 from schemas.score import JobScore
 from schemas.search_hit import SearchHit
 from urls import job_id
 
-DEFAULT_DB_PATH = Path(__file__).parent / "data" / "jobs.db"
+DEFAULT_DB_PATH = DB_PATH
 
 
 class JobStatus(StrEnum):

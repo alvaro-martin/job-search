@@ -7,9 +7,12 @@ Only rules that can be judged from a title are applied here:
 The rest of the dealbreakers need the full page and are applied in a later node.
 """
 
+from logs import get_logger, log_rejected
 from schemas.search_hit import RejectedHit, SearchHit
 from state import State
 from text_match import contains_term
+
+log = get_logger(__name__)
 
 
 def rejection_reason(hit: SearchHit, blocked: list[tuple[str, str]]) -> str | None:
@@ -33,7 +36,7 @@ def filter_by_title(state: State) -> dict:
         else:
             candidates.append(hit)
 
-    print(f"[title filter] {len(state['unique_hits'])} jobs -> {len(candidates)} kept, {len(rejected)} rejected")
-    for r in rejected:
-        print(f"   x {r.hit.title[:60]}  ({r.reason})")
+    log.info("%d jobs -> %d kept, %d rejected by title",
+             len(state["unique_hits"]), len(candidates), len(rejected))
+    log_rejected(log, rejected)
     return {"candidates": candidates, "rejected": rejected}

@@ -16,7 +16,9 @@ import streamlit as st  # noqa: E402
 import jobs_view  # noqa: E402
 import profile_view  # noqa: E402
 import run_view  # noqa: E402
+from logs import setup_logging  # noqa: E402
 
+setup_logging()  # console and data/logs/jobagent.log; does nothing if already set up
 st.set_page_config(page_title="Job Agent", layout="wide")
 st.title("Job Agent")
 

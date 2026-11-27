@@ -1,10 +1,15 @@
-"""Jobs tab: browse everything in the database, see the details of a job, read past reports."""
+"""Jobs tab: browse everything in the database, see the details of a job, read past reports
+and see the history of the runs."""
+
+from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 import write_report
 from job_store import JobStore, StoredJob
+from run_history import RunHistory, RunRecord
 from schemas.score import JobScore
 from text_match import normalize_text
 
@@ -45,6 +50,39 @@ def to_dataframe(jobs: list[StoredJob]) -> pd.DataFrame:
             for j in jobs
         ]
     ).astype({"Score": "float64"})
+
+
+def duration_text(started: str, finished: str | None) -> str:
+    """'1m 05s' or '42s'; '-' if the run has no end time (still running, or it died)."""
+    if not finished:
+        return "-"
+    seconds = int((datetime.fromisoformat(finished) - datetime.fromisoformat(started)).total_seconds())
+    minutes, seconds = divmod(max(seconds, 0), 60)
+    return f"{minutes}m {seconds:02d}s" if minutes else f"{seconds}s"
+
+
+HISTORY_COUNTERS = ["Results", "New", "Rejected", "Matches", "Retry"]
+
+
+def history_dataframe(runs: list[RunRecord]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "Started": r.started_at,
+                "Duration": duration_text(r.started_at, r.finished_at),
+                "Status": r.status,
+                "Trigger": r.triggered_by,
+                "Results": r.search_results,
+                "New": r.new_jobs,
+                "Rejected": r.rejected,
+                "Matches": r.matches,
+                "Retry": r.to_retry,
+                "Report": Path(r.report_path).name if r.report_path else None,
+                "Error": r.error.splitlines()[0] if r.error else None,
+            }
+            for r in runs
+        ]
+    ).astype({name: "float64" for name in HISTORY_COUNTERS})
 
 
 def aspects_table(details: JobScore) -> pd.DataFrame:
@@ -151,9 +189,45 @@ def render_reports() -> None:
         st.markdown(text)
 
 
+def show_run_details(run: RunRecord) -> None:
+    st.write(f"**Run {run.id}** · {run.status} · started {run.started_at} · "
+             f"triggered by {run.triggered_by}")
+    if run.error:
+        st.error(run.error)
+    if run.report_path:
+        path = Path(run.report_path)
+        if path.exists():
+            with st.container(border=True):
+                st.markdown(path.read_text(encoding="utf-8"))
+        else:
+            st.caption(f"The report {path.name} is no longer in the reports folder.")
+
+
+def render_history() -> None:
+    with RunHistory() as history:
+        runs = history.recent_runs()
+    if not runs:
+        st.info("No runs yet. Every run is listed here, whether it was started from the Run tab "
+                "or from the command line.")
+        return
+    st.caption(f"The latest {len(runs)} runs, newest first. Click a row to see the details.")
+    counter_format = st.column_config.NumberColumn(format="%d")
+    event = st.dataframe(
+        history_dataframe(runs), hide_index=True, key="history_table",
+        on_select="rerun", selection_mode="single-row",
+        column_config={name: counter_format for name in HISTORY_COUNTERS},
+    )
+    rows = event.selection.rows
+    if rows and rows[0] < len(runs):
+        st.divider()
+        show_run_details(runs[rows[0]])
+
+
 def render() -> None:
-    jobs_tab, reports_tab = st.tabs(["Jobs", "Reports"])
+    jobs_tab, reports_tab, history_tab = st.tabs(["Jobs", "Reports", "History"])
     with jobs_tab:
         render_jobs()
     with reports_tab:
         render_reports()
+    with history_tab:
+        render_history()

@@ -4,6 +4,7 @@ Checks that every node takes its settings from state["settings"]: change a setti
 run changes with it.
 """
 
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -16,11 +17,13 @@ import generate_queries
 import save_jobs
 import score_jobs
 import search_jobs
+import runner
 import write_report
 from graph import build_graph
 from job_store import JobStore
 from schemas.job import JobExtraction
 from schemas.schemas import Dealbreakers, Preferences, Profile
+from run_history import Counters, RunHistory, RunTrigger
 from schemas.score import Aspect, JobScore
 from settings import FetchSettings, ModelSettings, ScoreSettings, SearchSettings, Settings
 
@@ -112,6 +115,7 @@ def fakes(monkeypatch, tmp_path):
     monkeypatch.setattr(deduplicate, "JobStore", lambda: JobStore(db))
     monkeypatch.setattr(save_jobs, "JobStore", lambda: JobStore(db))
     monkeypatch.setattr(write_report, "REPORTS_DIR", tmp_path / "reports")
+    monkeypatch.setattr(runner, "RunHistory", lambda: RunHistory(db))
     return tavily, models_used
 
 
@@ -171,3 +175,44 @@ def test_a_lower_min_score_keeps_more_jobs(fakes):
     final = build_graph().invoke(make_state(make_settings(min_score=30)))
     assert len(final["scored_jobs"]) == 3
     assert final["rejected"] == []
+
+
+def test_the_counts_are_logged_at_info_and_each_rejected_job_at_debug(fakes, caplog):
+    caplog.set_level(logging.DEBUG, logger="jobagent")
+    build_graph().invoke(make_state(make_settings(min_score=60)))
+
+    info = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
+    debug = [r.getMessage() for r in caplog.records if r.levelno == logging.DEBUG]
+    assert any("1 kept (score >= 60)" in message for message in info)
+    assert sum(message.startswith("rejected:") for message in debug) == 2
+    assert not any(message.startswith("rejected:") for message in info)
+
+
+def test_a_run_is_recorded_in_the_history(fakes, tmp_path):
+    result = runner.run_pipeline(RunTrigger.CRON, state=make_state(make_settings(min_score=60)))
+
+    # 2 queries x 5 results; 5 different jobs; 3 read (max_pages); 1 kept, 2 rejected,
+    # and the 2 jobs that were over the page cap come back in the next run
+    assert result.counters == Counters(
+        search_results=10, new_jobs=5, rejected=2, matches=1, to_retry=2
+    )
+    with RunHistory(tmp_path / "jobs.db") as history:
+        (run,) = history.recent_runs()
+    assert run.id == result.run_id
+    assert run.status == "success" and run.triggered_by == "cron"
+    assert run.matches == 1 and run.report_path == result.report_path
+
+
+def test_a_step_that_crashes_is_named_in_the_history(fakes, monkeypatch, tmp_path):
+    def broken(model):
+        raise RuntimeError("model unavailable")
+
+    monkeypatch.setattr(score_jobs, "build_chain", broken)
+    with pytest.raises(runner.PipelineError) as error:
+        runner.run_pipeline(RunTrigger.UI, state=make_state(make_settings()))
+
+    assert error.value.step == "score_jobs"
+    with RunHistory(tmp_path / "jobs.db") as history:
+        (run,) = history.recent_runs()
+    assert run.status == "failed"
+    assert run.error == "score_jobs: RuntimeError: model unavailable"

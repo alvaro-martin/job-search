@@ -15,11 +15,14 @@ rejected: it is kept and flagged in `job.unverified`.
 
 from datetime import date
 
+from logs import get_logger, log_rejected
 from schemas.job import JobPosting
 from schemas.schemas import Dealbreakers
 from schemas.search_hit import RejectedHit
 from state import State
 from text_match import contains_term
+
+log = get_logger(__name__)
 
 
 def check_job(
@@ -79,7 +82,7 @@ def filter_jobs(state: State) -> dict:
             kept_hits.append(hits_by_url[job.url])
 
     n_rejected = len(state["jobs"]) - len(kept_jobs)
-    print(f"[filter] {len(state['jobs'])} jobs -> {len(kept_jobs)} kept, {n_rejected} rejected")
-    for r in rejected[len(state["rejected"]) :]:
-        print(f"   x {r.hit.title[:60]}  ({r.reason})")
+    log.info("%d jobs -> %d kept, %d rejected by your dealbreakers",
+             len(state["jobs"]), len(kept_jobs), n_rejected)
+    log_rejected(log, rejected[len(state["rejected"]) :])
     return {"candidates": kept_hits, "jobs": kept_jobs, "rejected": rejected}

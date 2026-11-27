@@ -7,9 +7,11 @@ the same jobs show up again in the next run instead of being lost.
 from datetime import datetime
 from pathlib import Path
 
+from logs import get_logger
 from schemas.score import ScoredJob
 from state import State
 
+log = get_logger(__name__)
 REPORTS_DIR = Path(__file__).parent / "data" / "reports"
 
 
@@ -80,5 +82,5 @@ def write_report(state: State) -> dict:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     path = REPORTS_DIR / f"report_{now:%Y-%m-%d_%H%M%S}.md"
     path.write_text(render_report(state, now), encoding="utf-8")
-    print(f"[report] {len(state['scored_jobs'])} matches written to {path}")
+    log.info("%d matches written to %s", len(state["scored_jobs"]), path)
     return {"report_path": str(path)}

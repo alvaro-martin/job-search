@@ -9,10 +9,12 @@ import os
 from dotenv import load_dotenv
 from tavily import TavilyClient
 
+from logs import get_logger
 from schemas.search_hit import SearchHit
 from state import State
 
 load_dotenv()
+log = get_logger(__name__)
 
 
 def get_client() -> TavilyClient:
@@ -27,6 +29,7 @@ def search_jobs(state: State) -> dict:
     search = state["settings"].search
     client = get_client()
     hits: list[SearchHit] = []
+    failed = 0
 
     for query in state["queries"]:
         try:
@@ -38,7 +41,8 @@ def search_jobs(state: State) -> dict:
                 max_results=search.results_per_query,
             )
         except Exception as e:  # network error, no credits left, etc.
-            print(f"[warn] search failed for {query!r}: {e}")
+            log.warning("search failed for %r: %s", query, e)
+            failed += 1
             continue
 
         for r in response.get("results", []):
@@ -53,4 +57,6 @@ def search_jobs(state: State) -> dict:
                 )
             )
 
+    log.info("%d queries searched -> %d results, %d searches failed",
+             len(state["queries"]) - failed, len(hits), failed)
     return {"hits": hits}
