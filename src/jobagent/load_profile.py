@@ -1,7 +1,7 @@
 import json
 from schemas.schemas import Profile, Preferences, Dealbreakers
 
-data = json.load(open("data/example.profile.json", encoding="utf-8"))
+data = json.load(open("data/profile.json", encoding="utf-8"))
 
 profile = Profile.model_validate(data["profile"])
 preferences = Preferences.model_validate(data["preferences"])

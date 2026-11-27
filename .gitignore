@@ -9,3 +9,11 @@ __pycache__/
 # Personal data: never commit
 data/*
 !data/.gitkeep
+src/jobagent/data/profile.json
+src/jobagent/data/*.json
+src/jobagent/data/config.toml
+src/jobagent/data/reports/*
+src/jobagent/data/logs/*
+
+# sqlite database
+*.db
