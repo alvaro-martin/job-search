@@ -3,10 +3,6 @@
 Where each value comes from (later wins):
   1. the defaults in this file
   2. the config file, data/config.toml (optional: copy config.example.toml to start)
-  3. environment variables, for the model names only:
-       JOBAGENT_MODEL           all the steps
-       JOBAGENT_QUERY_MODEL     one step only (also _EXTRACT_, _SCORE_, _PARSE_);
-                                it beats JOBAGENT_MODEL
 
 Unknown fields are rejected, so a typo in the file fails loudly instead of being ignored.
 No API keys here: those stay in .env.
@@ -15,13 +11,10 @@ The settings travel inside the graph state, so every node reads state["settings"
 instead of module-level constants.
 """
 
-import os
 import tomllib
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
-from dotenv import load_dotenv
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from paths import CONFIG_PATH
@@ -116,26 +109,6 @@ class Settings(_Section):
 
 
 # ----------------------------- loading ---------------------------------
-MODEL_ENV_VAR = "JOBAGENT_MODEL"
-STEP_MODEL_ENV_VARS = {
-    "query": "JOBAGENT_QUERY_MODEL",
-    "extract": "JOBAGENT_EXTRACT_MODEL",
-    "score": "JOBAGENT_SCORE_MODEL",
-    "parse": "JOBAGENT_PARSE_MODEL",
-}
-
-
-def model_overrides(environ: Mapping[str, str]) -> dict[str, str]:
-    """Model names set in the environment. Empty values count as not set."""
-    everywhere = (environ.get(MODEL_ENV_VAR) or "").strip()
-    overrides = {}
-    for step, var in STEP_MODEL_ENV_VARS.items():
-        value = (environ.get(var) or "").strip() or everywhere
-        if value:
-            overrides[step] = value
-    return overrides
-
-
 def read_config_file(path: Path) -> dict:
     """The parsed TOML file, or {} if there is no file."""
     if not path.exists():
@@ -163,27 +136,15 @@ def format_errors(error: ValidationError) -> list[str]:
     return lines
 
 
-def load_settings(
-    path: Path | str | None = None, environ: Mapping[str, str] | None = None
-) -> Settings:
-    """Defaults, then the config file, then the model environment variables.
+def load_settings(path: Path | str | None = None) -> Settings:
+    """The defaults, with the config file's values on top.
 
     A missing file is fine (the defaults are used). A file with a problem raises ConfigError.
-    `path` and `environ` exist for tests; normally call load_settings() with no arguments.
+    `path` exists for tests; normally call load_settings() with no arguments.
     """
     path = Path(path) if path is not None else CONFIG_PATH
-    if environ is None:
-        load_dotenv()  # so JOBAGENT_* variables written in .env count too
-        environ = os.environ
-
-    data = read_config_file(path)
-    overrides = model_overrides(environ)
-    models = data.get("models", {})
-    if overrides and isinstance(models, dict):  # a wrong type is reported by the validation below
-        data["models"] = {**models, **overrides}
-
     try:
-        return Settings.model_validate(data)
+        return Settings.model_validate(read_config_file(path))
     except ValidationError as e:
         problems = "\n".join(f"  - {line}" for line in format_errors(e))
         raise ConfigError(f"Invalid settings in {path}:\n{problems}") from e

@@ -8,7 +8,6 @@ from pydantic import ValidationError
 from settings import ConfigError, Settings, load_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-NO_ENV: dict[str, str] = {}  # pass environ explicitly so the tests never read your real .env
 
 
 def write(tmp_path: Path, text: str) -> Path:
@@ -17,18 +16,18 @@ def write(tmp_path: Path, text: str) -> Path:
     return path
 
 
-def load(tmp_path: Path, text: str, environ: dict[str, str] = NO_ENV) -> Settings:
-    return load_settings(write(tmp_path, text), environ)
+def load(tmp_path: Path, text: str) -> Settings:
+    return load_settings(write(tmp_path, text))
 
 
 # ----------------------------- defaults and the example file -----------
 def test_no_file_gives_the_defaults(tmp_path):
-    assert load_settings(tmp_path / "missing.toml", NO_ENV) == Settings()
+    assert load_settings(tmp_path / "missing.toml") == Settings()
 
 
 def test_example_file_matches_the_defaults():
     # If this fails, config.example.toml and the defaults in settings.py have drifted apart.
-    assert load_settings(PROJECT_ROOT / "config.example.toml", NO_ENV) == Settings()
+    assert load_settings(PROJECT_ROOT / "config.example.toml") == Settings()
 
 
 def test_file_values_win_and_the_rest_stay_default(tmp_path):
@@ -42,23 +41,22 @@ def test_file_values_win_and_the_rest_stay_default(tmp_path):
 def test_file_saved_with_a_bom_still_loads(tmp_path):
     path = tmp_path / "config.toml"
     path.write_bytes(b"\xef\xbb\xbf[fetch]\nmax_pages = 3\n")
-    assert load_settings(path, NO_ENV).fetch.max_pages == 3
+    assert load_settings(path).fetch.max_pages == 3
 
 
-# ----------------------------- models and the environment --------------
-def test_environment_beats_the_file_and_a_specific_variable_beats_the_general_one(tmp_path):
-    text = '[models]\nscore = "openai:from-file"\nextract = "openai:from-file"\n'
-    env = {"JOBAGENT_MODEL": "openai:everywhere", "JOBAGENT_SCORE_MODEL": "openai:score-only"}
-    s = load(tmp_path, text, env)
-    assert s.models.score == "openai:score-only"
-    assert s.models.extract == "openai:everywhere"
-    assert s.models.query == "openai:everywhere"
-    assert s.models.parse == "openai:everywhere"
+# ----------------------------- models: only from the file --------------
+def test_each_step_can_use_its_own_model(tmp_path):
+    text = '[models]\nquery = "openai:a"\nextract = "openai:b"\nscore = "openai:c"\n'
+    s = load(tmp_path, text)
+    m = s.models
+    assert (m.query, m.extract, m.score) == ("openai:a", "openai:b", "openai:c")
+    assert s.models.parse == Settings().models.parse  # not in the file: the default
 
 
-def test_blank_environment_variables_are_ignored(tmp_path):
-    env = {"JOBAGENT_MODEL": "", "JOBAGENT_SCORE_MODEL": "   "}
-    s = load(tmp_path, '[models]\nscore = "openai:from-file"\n', env)
+def test_environment_variables_do_not_change_the_models(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOBAGENT_MODEL", "openai:from-env")
+    monkeypatch.setenv("JOBAGENT_SCORE_MODEL", "openai:from-env")
+    s = load(tmp_path, '[models]\nscore = "openai:from-file"\n')
     assert s.models.score == "openai:from-file"
     assert s.models.query == Settings().models.query
 
@@ -90,7 +88,7 @@ def test_invalid_toml_is_a_config_error(tmp_path):
 
 def test_wrong_type_for_a_whole_section_is_a_config_error(tmp_path):
     with pytest.raises(ConfigError, match="models"):
-        load(tmp_path, 'models = "openai:gpt-4o-mini"', {"JOBAGENT_MODEL": "openai:other"})
+        load(tmp_path, 'models = "openai:gpt-4o-mini"')
 
 
 def test_domains_must_be_bare_names(tmp_path):
