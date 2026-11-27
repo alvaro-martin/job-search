@@ -1,0 +1,33 @@
+x-jobagent: &jobagent
+  build: .
+  image: jobagent:latest
+  init: true
+  user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+  env_file: .env
+  volumes:
+    - ./src/jobagent/data:/app/src/jobagent/data
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  # The web UI. Start with: docker compose up -d
+  jobagent:
+    <<: *jobagent
+    container_name: jobagent
+    restart: unless-stopped
+    ports:
+      # Localhost only: the UI has no login. Use "8501:8501" to open it to your network.
+      - "127.0.0.1:8501:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # One-off commands (no UI). Not started by `up`; used with `docker compose run`.
+  cli:
+    <<: *jobagent
+    profiles: ["cli"]
