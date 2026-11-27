@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 
 from schemas.score import ScoredJob
-from score_jobs import MIN_SCORE
 from state import State
 
 REPORTS_DIR = Path(__file__).parent / "data" / "reports"
@@ -63,7 +62,7 @@ def render_report(state: State, generated_at: datetime) -> str:
 
     summary = (
         f"Search results: {len(state['hits'])} · new jobs: {new} · rejected: {rejected} · "
-        f"matches (score >= {MIN_SCORE}): {len(scored)}"
+        f"matches (score >= {state['settings'].score.min_score}): {len(scored)}"
     )
     if retry > 0:
         summary += f" · to retry next run: {retry}"

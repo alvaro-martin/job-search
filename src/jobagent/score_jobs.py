@@ -22,12 +22,8 @@ from state import State
 
 load_dotenv()
 
-# ---------------------- edit these ----------------------
-MODEL = os.getenv("JOBAGENT_SCORE_MODEL", os.getenv("JOBAGENT_MODEL", "openai:gpt-4o-mini"))
-MIN_SCORE = 60  # jobs below this are rejected
+# The model, the minimum score and the weights are in the settings (see settings.py).
 MAX_CONCURRENCY = 5
-WEIGHTS = {"role": 30, "stack": 30, "experience": 20, "logistics": 15, "salary": 5}
-# --------------------------------------------------------
 
 SYSTEM_PROMPT_PATH = Path(
     os.getenv("JOBAGENT_SCORE_PROMPT", Path(__file__).parent / "prompts" / "score_job_system.txt")
@@ -51,22 +47,23 @@ def build_prompt() -> ChatPromptTemplate:
     return ChatPromptTemplate.from_messages([system, ("human", HUMAN_TEMPLATE)])
 
 
-def build_chain():
+def build_chain(model: str):
     """Prompt -> LLM -> validated JobScore object."""
-    llm = init_chat_model(MODEL, temperature=0)
+    llm = init_chat_model(model, temperature=0)
     return build_prompt() | llm.with_structured_output(JobScore)
 
 
-def total_score(details: JobScore) -> int:
+def total_score(details: JobScore, weights: dict[str, int]) -> int:
     """Weighted average of the aspects that could be judged (0 if none could)."""
     judged = [
-        (WEIGHTS[name], getattr(details, name).score)
-        for name in WEIGHTS
+        (weights[name], getattr(details, name).score)
+        for name in weights
         if getattr(details, name).score is not None
     ]
-    if not judged:
+    total_weight = sum(w for w, _ in judged)
+    if total_weight == 0:  # nothing judged, or only aspects whose weight is 0
         return 0
-    return round(sum(w * s for w, s in judged) / sum(w for w, _ in judged))
+    return round(sum(w * s for w, s in judged) / total_weight)
 
 
 def score_jobs(state: State) -> dict:
@@ -74,6 +71,8 @@ def score_jobs(state: State) -> dict:
     if not jobs:
         return {"scored_jobs": []}
 
+    settings = state["settings"]
+    min_score, weights = settings.score.min_score, settings.score.weights.model_dump()
     profile = state["profile"].model_dump_json(indent=2, exclude_none=True)
     preferences = state["preferences"].model_dump_json(indent=2, exclude_none=True)
     notes = state["dealbreakers"].notes or "(none)"
@@ -86,7 +85,7 @@ def score_jobs(state: State) -> dict:
         }
         for job in jobs
     ]
-    results = build_chain().batch(
+    results = build_chain(settings.models.score).batch(
         inputs, config={"max_concurrency": MAX_CONCURRENCY}, return_exceptions=True
     )
 
@@ -101,11 +100,11 @@ def score_jobs(state: State) -> dict:
             failed += 1
             continue
 
-        total = total_score(details)
+        total = total_score(details, weights)
         if details.violates_notes:
             reason = f"breaks your notes: {details.notes_reason or 'see job'}"
-        elif total < MIN_SCORE:
-            reason = f"score {total} is below {MIN_SCORE}: {details.summary}"
+        elif total < min_score:
+            reason = f"score {total} is below {min_score}: {details.summary}"
         else:
             reason = None
 
@@ -123,7 +122,7 @@ def score_jobs(state: State) -> dict:
     kept_hits, kept_jobs = [kept_hits[i] for i in order], [kept_jobs[i] for i in order]
 
     print(
-        f"[score] {len(jobs)} jobs -> {len(scored)} kept (score >= {MIN_SCORE}), "
+        f"[score] {len(jobs)} jobs -> {len(scored)} kept (score >= {min_score}), "
         f"{len(jobs) - len(scored) - failed} rejected, {failed} failed"
     )
     for r in rejected[len(state["rejected"]) :]:

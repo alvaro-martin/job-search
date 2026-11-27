@@ -19,7 +19,7 @@ from state import State
 
 load_dotenv()
 
-MODEL = os.getenv("JOBAGENT_EXTRACT_MODEL", os.getenv("JOBAGENT_MODEL", "openai:gpt-4o-mini"))
+# The model is in the settings (see settings.py).
 MAX_CONCURRENCY = 5  # how many pages are read by the LLM at the same time
 SYSTEM_PROMPT_PATH = Path(
     os.getenv(
@@ -40,9 +40,9 @@ def build_prompt() -> ChatPromptTemplate:
     return ChatPromptTemplate.from_messages([system, ("human", HUMAN_TEMPLATE)])
 
 
-def build_chain():
+def build_chain(model: str):
     """Prompt -> LLM -> validated JobExtraction object."""
-    llm = init_chat_model(MODEL, temperature=0)
+    llm = init_chat_model(model, temperature=0)
     return build_prompt() | llm.with_structured_output(JobExtraction)
 
 
@@ -54,7 +54,7 @@ def extract_jobs(state: State) -> dict:
     today = date.today().isoformat()
     inputs = [{"today": today, "url": h.url, "text": state["pages"][h.url]} for h in candidates]
     # return_exceptions=True: one failing page must not stop the others
-    results = build_chain().batch(
+    results = build_chain(state["settings"].models.extract).batch(
         inputs, config={"max_concurrency": MAX_CONCURRENCY}, return_exceptions=True
     )
 

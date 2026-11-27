@@ -6,13 +6,8 @@ from pathlib import Path
 
 import streamlit as st
 
-from extract_jobs import MODEL as EXTRACT_MODEL
-from fetch_pages import MAX_PAGES_PER_RUN
-from generate_queries import MAX_QUERIES
-from generate_queries import MODEL as QUERY_MODEL
 from graph import build_graph, load_initial_state
-from score_jobs import MIN_SCORE
-from score_jobs import MODEL as SCORE_MODEL
+from settings import ConfigError, Settings, load_settings
 
 # The graph is a straight line, so these are the steps in order.
 NODE_LABELS = {
@@ -44,11 +39,12 @@ PROVIDER_KEYS = {
 
 
 # ----------------------------- helpers (no Streamlit) ------------------
-def check_keys() -> list[dict]:
+def check_keys(settings: Settings) -> list[dict]:
     """Which API keys does a run need, and are they set? Never returns the keys themselves."""
     checks = [{"name": "TAVILY_API_KEY", "needed_by": "search and page download",
                "status": "found" if os.getenv("TAVILY_API_KEY") else "missing"}]
-    for model in dict.fromkeys([QUERY_MODEL, EXTRACT_MODEL, SCORE_MODEL]):  # unique, in order
+    models = settings.models
+    for model in dict.fromkeys([models.query, models.extract, models.score]):  # unique, in order
         provider = model.split(":", 1)[0] if ":" in model else None
         if provider in PROVIDER_KEYS and PROVIDER_KEYS[provider] is None:
             continue  # e.g. a local model: no key needed
@@ -67,6 +63,7 @@ def check_keys() -> list[dict]:
 def describe(node: str, before: dict, after: dict) -> str:
     """One short line on what a step just did, from the state before and after it."""
     newly_rejected = len(after["rejected"]) - len(before["rejected"])
+    min_score = after["settings"].score.min_score
     if node == "generate_queries":
         return f"{len(after['queries'])} queries"
     if node == "search_jobs":
@@ -82,7 +79,7 @@ def describe(node: str, before: dict, after: dict) -> str:
     if node == "filter_jobs":
         return f"{len(after['jobs'])} kept, {newly_rejected} rejected"
     if node == "score_jobs":
-        return f"{len(after['scored_jobs'])} matches (score >= {MIN_SCORE}), {newly_rejected} rejected"
+        return f"{len(after['scored_jobs'])} matches (score >= {min_score}), {newly_rejected} rejected"
     if node == "write_report":
         return "done"
     return ""
@@ -169,12 +166,17 @@ def show_last_run() -> None:
 
 def render() -> None:
     st.subheader("Run the agent")
-    checks = check_keys()
+    try:
+        settings = load_settings()  # read on every rerun, so edits to the config file apply at once
+    except ConfigError as e:
+        st.error(f"The settings file has a problem, fix it and reload this page.\n\n{e}")
+        return
+    checks = check_keys(settings)
     show_setup(checks)
 
     state, problem = None, None
     try:
-        state = load_initial_state()
+        state = load_initial_state(settings)
     except FileNotFoundError:
         problem = "No profile saved yet. Create one in the Profile tab first."
     except ValueError as e:
@@ -185,10 +187,11 @@ def render() -> None:
         roles = ", ".join(state["preferences"].target_roles)
         st.write(f"The run will use your saved profile. Target roles: **{roles}**")
 
+    max_pages = settings.fetch.max_pages
     st.info(
-        f"A run makes up to {MAX_QUERIES} searches, downloads up to {MAX_PAGES_PER_RUN} pages and "
-        f"makes up to {2 * MAX_PAGES_PER_RUN + 1} AI calls (1 for the queries, then up to "
-        f"{MAX_PAGES_PER_RUN} to read pages and {MAX_PAGES_PER_RUN} to score them). "
+        f"A run makes up to {settings.search.max_queries} searches, downloads up to {max_pages} "
+        f"pages and makes up to {2 * max_pages + 1} AI calls (1 for the queries, then up to "
+        f"{max_pages} to read pages and {max_pages} to score them). "
         "It takes a few minutes."
     )
     st.caption(

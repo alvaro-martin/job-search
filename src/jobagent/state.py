@@ -6,9 +6,11 @@ from schemas.schemas import Dealbreakers, Preferences, Profile
 from schemas.job import JobPosting
 from schemas.score import ScoredJob
 from schemas.search_hit import RejectedHit, SearchHit
+from settings import Settings
 
 
 class State(TypedDict):
+    settings: Settings  # loaded once at the start; every node reads its settings from here
     profile: Profile
     preferences: Preferences
     dealbreakers: Dealbreakers

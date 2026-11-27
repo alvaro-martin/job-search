@@ -1,0 +1,52 @@
+# Job Agent settings.
+#
+# To use: copy this file to src/jobagent/data/config.toml and edit the copy.
+# Your copy is not committed to git. The file is optional: anything you leave out
+# (or if there is no file at all) falls back to the values shown here.
+#
+# This file holds no secrets. API keys stay in .env.
+# A typo in a section or setting name is an error, on purpose.
+
+[search]
+# Only these job boards are searched. Bare domain names, no https://
+domains = [
+    "gupy.io",
+    "programathor.com.br",
+    "vagas.com.br",
+    "remotar.com.br",
+    "trampos.co",
+    "revelo.com.br",
+    "infojobs.com.br",
+]
+time_range = "week"   # how far back the search looks: "day", "week", "month" or "year"
+results_per_query = 1 # results Tavily returns per query (1 to 20)
+max_queries = 1       # queries per run (1 to 20). Each one costs Tavily credits
+max_age_days = 7      # reject jobs posted longer ago than this. Keep it in line with time_range
+
+[fetch]
+max_pages = 1           # pages downloaded and read per run. Bounds the Tavily and AI cost
+extract_depth = "basic"  # "advanced" handles JavaScript-heavy pages, but costs more
+
+[score]
+min_score = 40  # jobs scoring below this (0 to 100) are rejected
+
+# How much each aspect counts in the total score. Only the proportions matter:
+# 30/30/20/15/5 is the same as 6/6/4/3/1. An aspect the posting gives no information
+# about is left out of the average.
+[score.weights]
+role = 30
+stack = 30
+experience = 20
+logistics = 15
+salary = 5
+
+# Models, as "provider:model". Any provider LangChain supports works.
+# Environment variables override these:
+#   JOBAGENT_MODEL=openai:gpt-4o-mini       use this model for every step
+#   JOBAGENT_QUERY_MODEL, JOBAGENT_EXTRACT_MODEL, JOBAGENT_SCORE_MODEL, JOBAGENT_PARSE_MODEL
+#                                           one step only; these win over JOBAGENT_MODEL
+[models]
+query = "openai:gpt-5-nano"     # writes the search queries
+extract = "openai:gpt-5-nano"  # reads each job page
+score = "openai:gpt-5-nano"    # judges how well each job fits you
+parse = "openai:gpt-5-nano"    # reads your CV in the Profile tab

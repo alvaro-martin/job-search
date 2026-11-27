@@ -7,7 +7,7 @@ Rules, all in plain code so they are predictable and testable:
   - an excluded work model                                   -> reject
   - ALL the contract types the job offers are excluded       -> reject
     (if it offers CLT or PJ and only PJ is excluded, it stays)
-  - posted more than MAX_AGE_DAYS ago                        -> reject
+  - posted more than settings.search.max_age_days ago        -> reject
 
 When the page does not state something we would have liked to check, the job is NOT
 rejected: it is kept and flagged in `job.unverified`.
@@ -21,11 +21,13 @@ from schemas.search_hit import RejectedHit
 from state import State
 from text_match import contains_term
 
-MAX_AGE_DAYS = 7  # keep in line with TIME_RANGE in search_jobs.py
-
 
 def check_job(
-    job: JobPosting, dealbreakers: Dealbreakers, today: date | None = None
+    job: JobPosting,
+    dealbreakers: Dealbreakers,
+    today: date | None = None,
+    *,
+    max_age_days: int,
 ) -> tuple[str | None, list[str]]:
     """Returns (reason to reject or None, flags for things the page doesn't say)."""
     today = today or date.today()
@@ -48,8 +50,8 @@ def check_job(
 
     if job.posted_date:
         age = (today - job.posted_date).days
-        if age > MAX_AGE_DAYS:
-            return f"posted {age} days ago (max {MAX_AGE_DAYS})", []
+        if age > max_age_days:
+            return f"posted {age} days ago (max {max_age_days})", []
 
     flags: list[str] = []
     if dealbreakers.work_models and job.work_model is None:
@@ -66,9 +68,10 @@ def filter_jobs(state: State) -> dict:
     kept_jobs: list[JobPosting] = []
     kept_hits = []
     rejected = list(state["rejected"])
+    max_age_days = state["settings"].search.max_age_days
 
     for job in state["jobs"]:
-        reason, flags = check_job(job, state["dealbreakers"])
+        reason, flags = check_job(job, state["dealbreakers"], max_age_days=max_age_days)
         if reason:
             rejected.append(RejectedHit(hit=hits_by_url[job.url], reason=reason, job=job))
         else:

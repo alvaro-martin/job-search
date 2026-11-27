@@ -17,12 +17,11 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
 from schemas.schemas import Dealbreakers, Preferences, Profile
+from settings import Settings, load_settings
 
 load_dotenv()  # reads API keys from a .env file
 
-# "provider:model". Change it to whichever provider you have a key for.
-MODEL = os.getenv("JOBAGENT_MODEL", "openai:gpt-5-nano")
-MAX_QUERIES = 1  # each query costs Tavily credits, so we cap them
+# The model and the number of queries are in the settings (see settings.py).
 # The system prompt lives in a plain text file so anyone can replace it.
 # Point JOBAGENT_QUERY_PROMPT to your own file to use a different prompt.
 SYSTEM_PROMPT_PATH = Path(
@@ -36,6 +35,7 @@ PROFILE_PATH = Path(__file__).parent / "data" / "profile.json"
 class State(TypedDict):
     """The data that travels through the graph. Each node reads and updates it."""
 
+    settings: Settings
     profile: Profile
     preferences: Preferences
     dealbreakers: Dealbreakers
@@ -72,9 +72,9 @@ def build_prompt() -> ChatPromptTemplate:
     )
 
 
-def build_chain():
+def build_chain(model: str):
     """Prompt -> LLM -> validated SearchQueries object."""
-    llm = init_chat_model(MODEL, temperature=0.3)
+    llm = init_chat_model(model, temperature=0.3)
     return build_prompt() | llm.with_structured_output(SearchQueries)
 
 
@@ -93,14 +93,16 @@ def clean_queries(queries: list[str], limit: int) -> list[str]:
 # ----------------------------- the node --------------------------------
 def generate_queries(state: State) -> dict:
     """Read preferences + dealbreakers from the state, return the new queries."""
-    result = build_chain().invoke(
+    settings = state["settings"]
+    max_queries = settings.search.max_queries
+    result = build_chain(settings.models.query).invoke(
         {
-            "max_queries": MAX_QUERIES,
+            "max_queries": max_queries,
             "preferences": state["preferences"].model_dump_json(indent=2, exclude_none=True),
             "dealbreakers": state["dealbreakers"].model_dump_json(indent=2, exclude_none=True),
         }
     )
-    return {"queries": clean_queries(result.queries, MAX_QUERIES)}
+    return {"queries": clean_queries(result.queries, max_queries)}
 
 
 # ----------------------------- the graph -------------------------------
@@ -115,6 +117,7 @@ def build_graph():
 if __name__ == "__main__":
     data = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
     initial_state = {
+        "settings": load_settings(),
         "profile": Profile.model_validate(data["profile"]),
         "preferences": Preferences.model_validate(data["preferences"]),
         "dealbreakers": Dealbreakers.model_validate(data["dealbreakers"]),

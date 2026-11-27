@@ -26,7 +26,7 @@ from schemas.user_profile import ProfileDraft
 
 load_dotenv()
 
-MODEL = os.getenv("JOBAGENT_PARSE_MODEL", os.getenv("JOBAGENT_MODEL", "openai:gpt-4o-mini"))
+# The model is in the settings (see settings.py), under models.parse.
 MAX_CHARS = 30_000  # a CV is far shorter; this only guards against huge files
 MIN_PDF_CHARS = 100  # less text than this means the PDF is probably a scan (images)
 SYSTEM_PROMPT_PATH = Path(
@@ -102,19 +102,19 @@ def build_prompt() -> ChatPromptTemplate:
     return ChatPromptTemplate.from_messages([system, ("human", HUMAN_TEMPLATE)])
 
 
-def build_chain():
+def build_chain(model: str):
     """Prompt -> LLM -> validated ProfileDraft object."""
-    llm = init_chat_model(MODEL, temperature=0)
+    llm = init_chat_model(model, temperature=0)
     return build_prompt() | llm.with_structured_output(ProfileDraft)
 
 
-def parse_profile(cv_text: str = "", notes: str = "") -> ProfileDraft:
-    """Build a draft profile from CV text and/or the candidate's notes."""
+def parse_profile(cv_text: str = "", notes: str = "", *, model: str) -> ProfileDraft:
+    """Build a draft profile from CV text and/or the candidate's notes, using `model`."""
     cv_text, notes = cv_text.strip(), notes.strip()
     if not cv_text and not notes:
         raise ProfileInputError("Upload a CV or write something about yourself first.")
 
-    draft = build_chain().invoke(
+    draft = build_chain(model).invoke(
         {
             "today": date.today().isoformat(),
             "cv_text": redact_contact_data(cv_text)[:MAX_CHARS] or "(none)",

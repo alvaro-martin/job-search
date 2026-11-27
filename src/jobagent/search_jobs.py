@@ -14,20 +14,6 @@ from state import State
 
 load_dotenv()
 
-# ---------------------- edit these ----------------------
-DOMAINS = [
-    "gupy.io",
-    "programathor.com.br",
-    "vagas.com.br",
-    "remotar.com.br",
-    "trampos.co",
-    "revelo.com.br",
-    "infojobs.com.br"
-]
-TIME_RANGE = "week"  # "day" | "week" | "month" | "year"
-MAX_RESULTS_PER_QUERY = 1
-# --------------------------------------------------------
-
 
 def get_client() -> TavilyClient:
     api_key = os.getenv("TAVILY_API_KEY")
@@ -38,6 +24,7 @@ def get_client() -> TavilyClient:
 
 def search_jobs(state: State) -> dict:
     """Run each query and return all the hits (duplicates are removed in a later node)."""
+    search = state["settings"].search
     client = get_client()
     hits: list[SearchHit] = []
 
@@ -46,9 +33,9 @@ def search_jobs(state: State) -> dict:
             response = client.search(
                 query=query,
                 search_depth="basic",
-                time_range=TIME_RANGE,
-                include_domains=DOMAINS,
-                max_results=MAX_RESULTS_PER_QUERY,
+                time_range=search.time_range,
+                include_domains=search.domains,
+                max_results=search.results_per_query,
             )
         except Exception as e:  # network error, no credits left, etc.
             print(f"[warn] search failed for {query!r}: {e}")

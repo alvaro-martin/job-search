@@ -17,6 +17,7 @@ from save_jobs import save_jobs
 from score_jobs import score_jobs
 from schemas.user_profile import UserProfile
 from search_jobs import search_jobs
+from settings import Settings, load_settings
 from state import State
 from write_report import write_report
 
@@ -47,9 +48,13 @@ def build_graph():
     return builder.compile()
 
 
-def load_initial_state() -> State:
+def load_initial_state(settings: Settings | None = None) -> State:
+    """The starting state: the settings (loaded now unless you pass them) and your profile."""
+    if settings is None:
+        settings = load_settings()
     user = UserProfile.load(PROFILE_PATH)
     return {
+        "settings": settings,
         "profile": user.profile,
         "preferences": user.preferences,
         "dealbreakers": user.dealbreakers,

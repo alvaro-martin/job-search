@@ -14,6 +14,7 @@ from paths import PROFILE_PATH
 from profile_parser import ProfileInputError, extract_pdf_text, parse_profile
 from schemas.schemas import ContractType, LanguageLevel, Seniority, WorkModel
 from schemas.user_profile import ProfileDraft, UserProfile
+from settings import ConfigError, load_settings
 
 SENIORITY = [s.value for s in Seniority]
 WORK_MODELS = [w.value for w in WorkModel]
@@ -78,10 +79,11 @@ def init_state() -> None:
 
 def analyze(uploaded, notes: str) -> None:
     try:
+        model = load_settings().models.parse
         cv_text = extract_pdf_text(io.BytesIO(uploaded.getvalue())) if uploaded else ""
         with st.spinner("Reading your input with the AI..."):
-            draft = parse_profile(cv_text=cv_text, notes=notes)
-    except ProfileInputError as e:
+            draft = parse_profile(cv_text=cv_text, notes=notes, model=model)
+    except (ConfigError, ProfileInputError) as e:
         st.error(str(e))
         return
     except Exception as e:  # missing API key, network error, model error...
